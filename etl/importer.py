@@ -141,21 +141,38 @@ def import_iso_projects(file_path_or_buffer, clear_existing=True):
         if not col_map:
             continue
 
+        # Forward-fill Project_ID and Project_Name for merged cell structure.
+        # In the Excel, Project_ID appears once and Project_Name is merged,
+        # with subsequent rows blank for additional units under the same project.
+        pid_col = col_map.get("project_id")
+        pname_col = col_map.get("project_name")
+        if pid_col:
+            df[pid_col] = df[pid_col].ffill()
+        if pname_col:
+            df[pname_col] = df[pname_col].ffill()
+
         for _, row in df.iterrows():
-            project_id = str(row.get(col_map.get("project_id", ""), "")).strip()
+            project_id = safe_str(row.get(col_map.get("project_id", ""), ""))
             if not project_id or project_id == "nan":
+                continue
+
+            # Skip rows where unit-level fields are all empty (padding rows)
+            unit_val = safe_str(row.get(col_map.get("unit", ""), ""))
+            city_val = normalize_text(row.get(col_map.get("city", "")))
+            exp_val = row.get(col_map.get("exp_date", ""))
+            if not unit_val and not city_val and _is_na(exp_val):
                 continue
 
             iso_project = ISOProject(
                 project_id=project_id,
-                project_name=str(row.get(col_map.get("project_name", ""), "")).strip(),
-                unit=str(row.get(col_map.get("unit", ""), "")).strip() if col_map.get("unit") else None,
-                address=str(row.get(col_map.get("address", ""), "")).strip() if col_map.get("address") else None,
-                postal_code=str(row.get(col_map.get("postal_code", ""), "")).strip() if col_map.get("postal_code") else None,
-                city=normalize_text(row.get(col_map.get("city", ""))),
-                state=str(row.get(col_map.get("state", ""), "")).strip() if col_map.get("state") else None,
+                project_name=safe_str(row.get(col_map.get("project_name", ""), "")),
+                unit=unit_val if unit_val else None,
+                address=safe_str(row.get(col_map.get("address", ""), "")) or None,
+                postal_code=safe_str(row.get(col_map.get("postal_code", ""), "")) or None,
+                city=city_val,
+                state=safe_str(row.get(col_map.get("state", ""), "")) or None,
                 country=normalize_text(row.get(col_map.get("country", ""))),
-                exp_date=parse_date(row.get(col_map.get("exp_date", ""))),
+                exp_date=parse_date(exp_val),
                 iso_standard=sheet_name,
             )
             session.add(iso_project)
