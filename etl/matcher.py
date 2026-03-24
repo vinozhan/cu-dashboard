@@ -5,7 +5,7 @@ from db.database import get_session, engine
 
 def find_overlaps(max_gap_days=60):
     """
-    Find projects where an audit's Planning Start Date and an ISO project's
+    Find projects where the audit's Expiry Date and an ISO project's
     Exp_Date fall within max_gap_days of each other.
 
     Returns a DataFrame with matched pairs and gap info.
@@ -15,7 +15,7 @@ def find_overlaps(max_gap_days=60):
             a.project_id,
             a.project_name AS audit_project,
             a.planning_start_date,
-            a.planning_end_date,
+            a.expiry_date AS audit_expiry_date,
             a.inspection_days,
             a.spg_name,
             a.spg_status,
@@ -26,16 +26,16 @@ def find_overlaps(max_gap_days=60):
             ip.unit,
             ip.city AS iso_city,
             ip.country AS iso_country,
-            ip.exp_date,
+            ip.exp_date AS iso_exp_date,
             ip.iso_standard,
-            julianday(a.planning_start_date) - julianday(ip.exp_date) AS gap_days
+            julianday(a.expiry_date) - julianday(ip.exp_date) AS gap_days
         FROM audits a
         INNER JOIN iso_projects ip
             ON a.project_id = ip.project_id
-        WHERE a.planning_start_date IS NOT NULL
+        WHERE a.expiry_date IS NOT NULL
             AND ip.exp_date IS NOT NULL
-            AND ABS(julianday(a.planning_start_date) - julianday(ip.exp_date)) <= :max_gap
-        ORDER BY ABS(julianday(a.planning_start_date) - julianday(ip.exp_date))
+            AND ABS(julianday(a.expiry_date) - julianday(ip.exp_date)) <= :max_gap
+        ORDER BY ABS(julianday(a.expiry_date) - julianday(ip.exp_date))
     """)
 
     df = pd.read_sql(query, engine, params={"max_gap": max_gap_days})
@@ -43,9 +43,8 @@ def find_overlaps(max_gap_days=60):
     if not df.empty:
         df["gap_days"] = df["gap_days"].round(0).astype(int)
         df["abs_gap_days"] = df["gap_days"].abs()
-        df["planning_start_date"] = pd.to_datetime(df["planning_start_date"])
-        df["planning_end_date"] = pd.to_datetime(df["planning_end_date"])
-        df["exp_date"] = pd.to_datetime(df["exp_date"])
+        df["audit_expiry_date"] = pd.to_datetime(df["audit_expiry_date"])
+        df["iso_exp_date"] = pd.to_datetime(df["iso_exp_date"])
 
     return df
 
@@ -61,8 +60,8 @@ def find_city_clusters(min_projects=2):
             project_name,
             city,
             country,
-            planning_start_date AS relevant_date,
-            'Audit' AS source_type,
+            expiry_date AS relevant_date,
+            'Audit Expiry' AS source_type,
             spg_name AS detail,
             source_month
         FROM audits
@@ -97,7 +96,7 @@ def find_city_clusters(min_projects=2):
         df_all.groupby(["city", "country"])
         .agg(
             total_projects=("project_id", "nunique"),
-            audit_count=("source_type", lambda x: (x == "Audit").sum()),
+            audit_count=("source_type", lambda x: (x == "Audit Expiry").sum()),
             iso_count=("source_type", lambda x: (x == "ISO Expiry").sum()),
             earliest_date=("relevant_date", "min"),
             latest_date=("relevant_date", "max"),
@@ -120,16 +119,16 @@ def get_summary_stats():
         overlap_30 = session.execute(text("""
             SELECT COUNT(*) FROM audits a
             INNER JOIN iso_projects ip ON a.project_id = ip.project_id
-            WHERE a.planning_start_date IS NOT NULL
+            WHERE a.expiry_date IS NOT NULL
                 AND ip.exp_date IS NOT NULL
-                AND ABS(julianday(a.planning_start_date) - julianday(ip.exp_date)) <= 30
+                AND ABS(julianday(a.expiry_date) - julianday(ip.exp_date)) <= 30
         """)).scalar()
         overlap_60 = session.execute(text("""
             SELECT COUNT(*) FROM audits a
             INNER JOIN iso_projects ip ON a.project_id = ip.project_id
-            WHERE a.planning_start_date IS NOT NULL
+            WHERE a.expiry_date IS NOT NULL
                 AND ip.exp_date IS NOT NULL
-                AND ABS(julianday(a.planning_start_date) - julianday(ip.exp_date)) <= 60
+                AND ABS(julianday(a.expiry_date) - julianday(ip.exp_date)) <= 60
         """)).scalar()
         cities_with_multiple = session.execute(text("""
             SELECT COUNT(*) FROM (

@@ -9,7 +9,7 @@ st.set_page_config(page_title="Audit Overlap Finder", layout="wide")
 init_db()
 
 st.title("Audit Overlap Finder")
-st.markdown("Find projects where a planned audit and an ISO certification expiry fall within a short time window — so both can be done in one trip.")
+st.markdown("Find projects where the audit expiry date and an ISO certification expiry date fall within a short time window — so both renewals can be done in one trip.")
 
 st.divider()
 
@@ -21,7 +21,7 @@ max_gap = st.sidebar.slider(
     max_value=180,
     value=60,
     step=7,
-    help="Show matches where audit date and ISO expiry are within this many days",
+    help="Show matches where audit expiry and ISO expiry are within this many days",
 )
 
 try:
@@ -65,22 +65,22 @@ st.divider()
 st.subheader("Timeline View")
 
 if not filtered.empty:
-    # Build timeline data: each project has an audit bar and an expiry marker
+    # Build timeline data: each project shows audit expiry and ISO expiry markers
     timeline_data = []
     for _, row in filtered.iterrows():
         label = f"{row['project_id']} - {row['audit_project']}"
-        # Audit period
+        # Audit Expiry (show as a 1-day bar)
         timeline_data.append({
             "Project": label,
-            "Start": row["planning_start_date"],
-            "End": row["planning_end_date"] if pd.notna(row["planning_end_date"]) else row["planning_start_date"],
-            "Type": "Audit Period",
+            "Start": row["audit_expiry_date"],
+            "End": row["audit_expiry_date"] + pd.Timedelta(days=1),
+            "Type": f"Audit Expiry ({row['spg_name']})",
         })
         # ISO Expiry (show as a 1-day bar)
         timeline_data.append({
             "Project": label,
-            "Start": row["exp_date"],
-            "End": row["exp_date"] + pd.Timedelta(days=1),
+            "Start": row["iso_exp_date"],
+            "End": row["iso_exp_date"] + pd.Timedelta(days=1),
             "Type": f"ISO Expiry ({row['iso_standard']})",
         })
 
@@ -91,7 +91,7 @@ if not filtered.empty:
         x_end="End",
         y="Project",
         color="Type",
-        title="Audit Periods vs ISO Expiry Dates",
+        title="Audit Expiry vs ISO Expiry Dates",
     )
     fig.update_yaxes(autorange="reversed")
     fig.update_layout(height=max(400, len(filtered) * 50))
@@ -103,13 +103,13 @@ st.divider()
 st.subheader("Matched Projects")
 
 display_cols = [
-    "project_id", "audit_project", "planning_start_date", "exp_date",
+    "project_id", "audit_project", "audit_expiry_date", "iso_exp_date",
     "gap_days", "abs_gap_days", "iso_standard", "audit_city",
     "audit_country", "spg_name", "spg_status",
 ]
 display_df = filtered[display_cols].copy()
 display_df.columns = [
-    "Project ID", "Project", "Audit Start", "ISO Expiry",
+    "Project ID", "Project", "Audit Expiry", "ISO Expiry",
     "Gap (days)", "Abs Gap", "ISO Standard", "City",
     "Country", "SPG Name", "SPG Status",
 ]

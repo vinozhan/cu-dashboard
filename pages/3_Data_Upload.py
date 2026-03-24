@@ -93,3 +93,73 @@ try:
 
 except Exception:
     st.info("No data imported yet.")
+
+# --- Data Tables ---
+st.divider()
+st.subheader("Imported Data Viewer")
+
+import pandas as pd
+from db.database import engine
+
+try:
+    tab1, tab2 = st.tabs(["Audits Data", "ISO Projects Data"])
+
+    with tab1:
+        df_audits = pd.read_sql("SELECT * FROM audits", engine)
+        if df_audits.empty:
+            st.info("No audit data imported yet.")
+        else:
+            # Filters
+            col_f1, col_f2, col_f3 = st.columns(3)
+            months = ["All"] + sorted(df_audits["source_month"].dropna().unique().tolist())
+            sel_month = col_f1.selectbox("Filter by Month", months, key="audit_month_filter")
+
+            countries = ["All"] + sorted(df_audits["country"].dropna().unique().tolist())
+            sel_country = col_f2.selectbox("Filter by Country", countries, key="audit_country_filter")
+
+            statuses = ["All"] + sorted(df_audits["spg_status"].dropna().unique().tolist())
+            sel_status = col_f3.selectbox("Filter by SPG Status", statuses, key="audit_status_filter")
+
+            display = df_audits.copy()
+            if sel_month != "All":
+                display = display[display["source_month"] == sel_month]
+            if sel_country != "All":
+                display = display[display["country"] == sel_country]
+            if sel_status != "All":
+                display = display[display["spg_status"] == sel_status]
+
+            st.markdown(f"Showing **{len(display)}** of {len(df_audits)} records")
+            st.dataframe(
+                display.drop(columns=["id"], errors="ignore"),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    with tab2:
+        df_iso = pd.read_sql("SELECT * FROM iso_projects", engine)
+        if df_iso.empty:
+            st.info("No ISO project data imported yet.")
+        else:
+            # Filters
+            col_f1, col_f2 = st.columns(2)
+            standards = ["All"] + sorted(df_iso["iso_standard"].dropna().unique().tolist())
+            sel_std = col_f1.selectbox("Filter by ISO Standard", standards, key="iso_std_filter")
+
+            iso_countries = ["All"] + sorted(df_iso["country"].dropna().unique().tolist())
+            sel_iso_country = col_f2.selectbox("Filter by Country", iso_countries, key="iso_country_filter")
+
+            display_iso = df_iso.copy()
+            if sel_std != "All":
+                display_iso = display_iso[display_iso["iso_standard"] == sel_std]
+            if sel_iso_country != "All":
+                display_iso = display_iso[display_iso["country"] == sel_iso_country]
+
+            st.markdown(f"Showing **{len(display_iso)}** of {len(df_iso)} records")
+            st.dataframe(
+                display_iso.drop(columns=["id"], errors="ignore"),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+except Exception:
+    pass
