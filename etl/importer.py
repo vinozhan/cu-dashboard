@@ -4,23 +4,33 @@ from db.database import get_session, init_db
 from db.models import Audit, ISOProject
 
 
+def _is_na(value):
+    """Check if a value is NA/NaN/None safely, without failing on datetime."""
+    if value is None:
+        return True
+    try:
+        return pd.isna(value)
+    except (ValueError, TypeError):
+        return False
+
+
 def normalize_text(value):
     """Lowercase and strip whitespace for consistent matching."""
-    if pd.isna(value):
+    if _is_na(value):
         return ""
     return str(value).strip().lower()
 
 
 def safe_str(value, default=""):
     """Safely convert any value to a stripped string."""
-    if value is None or (isinstance(value, float) and pd.isna(value)):
+    if _is_na(value):
         return default
     return str(value).strip()
 
 
 def parse_date(value):
     """Parse date from various Excel formats."""
-    if pd.isna(value):
+    if _is_na(value):
         return None
     if isinstance(value, datetime):
         return value.date()
@@ -49,36 +59,59 @@ def import_audits(file_path_or_buffer, clear_existing=True):
     xls = pd.ExcelFile(file_path_or_buffer)
     total_imported = 0
 
+    import traceback as _tb
+
     for sheet_name in xls.sheet_names:
         df = pd.read_excel(xls, sheet_name=sheet_name)
 
-        # Normalize column names: strip whitespace, lowercase
-        df.columns = [c.strip() for c in df.columns]
+        # Skip empty sheets
+        if df.empty or len(df.columns) == 0:
+            continue
+
+        # Normalize column names: convert to string and strip whitespace
+        df.columns = [str(c).strip() for c in df.columns]
 
         # Map columns flexibly
         col_map = _map_audit_columns(df.columns)
         if not col_map:
             continue  # skip sheets that don't match expected structure
 
-        for _, row in df.iterrows():
-            project_id = str(row.get(col_map.get("project_id", ""), "")).strip()
-            if not project_id or project_id == "nan":
-                continue
+        for row_idx, row in df.iterrows():
+            try:
+                project_id = safe_str(row.get(col_map.get("project_id", ""), ""))
+                if not project_id or project_id == "nan":
+                    continue
 
-            audit = Audit(
-                project_id=project_id,
-                project_name=str(row.get(col_map.get("project", ""), "")).strip(),
-                planning_start_date=parse_date(row.get(col_map.get("planning_start_date", ""))),
-                planning_end_date=parse_date(row.get(col_map.get("planning_end_date", ""))),
-                inspection_days=_safe_float(row.get(col_map.get("inspection_days", ""))),
-                spg_name=str(row.get(col_map.get("spg_name", ""), "")).strip(),
-                spg_status=str(row.get(col_map.get("spg_status", ""), "")).strip(),
-                city=normalize_text(row.get(col_map.get("city", ""))),
-                country=normalize_text(row.get(col_map.get("country", ""))),
-                source_month=sheet_name,
-            )
-            session.add(audit)
-            total_imported += 1
+                audit = Audit(
+                    project_id=project_id,
+                    project_name=safe_str(row.get(col_map.get("project", ""), "")),
+                    planning_start_date=parse_date(row.get(col_map.get("planning_start_date", ""))),
+                    planning_end_date=parse_date(row.get(col_map.get("planning_end_date", ""))),
+                    inspection_days=_safe_float(row.get(col_map.get("inspection_days", ""))),
+                    inspection_type=safe_str(row.get(col_map.get("inspection_type", ""), "")),
+                    spg_name=safe_str(row.get(col_map.get("spg_name", ""), "")),
+                    spg_status=safe_str(row.get(col_map.get("spg_status", ""), "")),
+                    city=normalize_text(row.get(col_map.get("city", ""))),
+                    country=normalize_text(row.get(col_map.get("country", ""))),
+                    source_month=sheet_name,
+                )
+                session.add(audit)
+                total_imported += 1
+            except Exception as e:
+                # Build debug info for the failing row
+                debug_info = {
+                    "sheet": sheet_name,
+                    "row_idx": row_idx,
+                    "col_map": col_map,
+                }
+                for field, col_name in col_map.items():
+                    val = row.get(col_name, "MISSING")
+                    debug_info[f"{field} -> {col_name}"] = f"{type(val).__name__}: {repr(val)}"
+                raise RuntimeError(
+                    f"Error on sheet '{sheet_name}', row {row_idx}:\n"
+                    + "\n".join(f"  {k}: {v}" for k, v in debug_info.items())
+                    + f"\n\nOriginal error: {e}\n{_tb.format_exc()}"
+                ) from e
 
     session.commit()
     session.close()
@@ -102,7 +135,7 @@ def import_iso_projects(file_path_or_buffer, clear_existing=True):
 
     for sheet_name in xls.sheet_names:
         df = pd.read_excel(xls, sheet_name=sheet_name)
-        df.columns = [c.strip() for c in df.columns]
+        df.columns = [str(c).strip() for c in df.columns]
 
         col_map = _map_iso_columns(df.columns)
         if not col_map:
@@ -135,32 +168,30 @@ def import_iso_projects(file_path_or_buffer, clear_existing=True):
 
 def _map_audit_columns(columns):
     """Flexibly map audit Excel columns to our field names."""
-    col_lower = {c.lower().replace(" ", "_").replace("-", "_"): c for c in columns}
+    # Exact match first (case-insensitive, stripped)
+    col_exact = {c.strip().lower(): c for c in columns}
     mapping = {}
 
+    # Exact column names: Project_ID, Project, Pl. St. Dt., Pl. End Dt.,
+    # Insp. Days, Insp. Type, SPG. Name, SPG. Status, City, Country
     patterns = {
-        "project_id": ["project_id", "projectid", "project_no"],
-        "project": ["project", "project_name", "projectname"],
-        "planning_start_date": ["planning_start_date", "start_date", "plan_start"],
-        "planning_end_date": ["planning_end_date", "end_date", "plan_end"],
-        "inspection_days": ["inspection_days", "inspectiondays", "days"],
-        "spg_name": ["spg_name", "spg_name(iso_22000:2018)", "spgname"],
-        "spg_status": ["spg_status", "spg_status(certified,_certification_suspended,_certification_withdrawn)", "spgstatus"],
+        "project_id": ["project_id"],
+        "project": ["project", "project_name"],
+        "planning_start_date": ["pl. st. dt.", "planning start date", "start_date"],
+        "planning_end_date": ["pl. end dt.", "planning end date", "end_date"],
+        "inspection_days": ["insp. days", "inspection_days", "inspection days"],
+        "inspection_type": ["insp. type", "inspection_type", "inspection type"],
+        "spg_name": ["spg. name", "spg_name", "spg name"],
+        "spg_status": ["spg. status", "spg_status", "spg status"],
         "city": ["city"],
         "country": ["country"],
     }
 
     for field, candidates in patterns.items():
         for candidate in candidates:
-            if candidate in col_lower:
-                mapping[field] = col_lower[candidate]
+            if candidate in col_exact:
+                mapping[field] = col_exact[candidate]
                 break
-        # Fallback: partial match
-        if field not in mapping:
-            for key, orig in col_lower.items():
-                if field.split("_")[0] in key:
-                    mapping[field] = orig
-                    break
 
     # Must have at least project_id to be a valid sheet
     if "project_id" not in mapping:
@@ -202,7 +233,7 @@ def _map_iso_columns(columns):
 
 
 def _safe_float(value):
-    if pd.isna(value):
+    if _is_na(value):
         return None
     try:
         return float(value)

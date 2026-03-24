@@ -13,6 +13,7 @@ class Audit(Base):
     planning_start_date = Column(Date)
     planning_end_date = Column(Date)
     inspection_days = Column(Float, nullable=True)
+    inspection_type = Column(String, nullable=True)
     spg_name = Column(String)
     spg_status = Column(String)
     city = Column(String, index=True)

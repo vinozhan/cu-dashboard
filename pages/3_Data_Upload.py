@@ -33,6 +33,8 @@ if audit_file is not None:
                 st.success(f"Successfully imported {count} audit records.")
             except Exception as e:
                 st.error(f"Import failed: {e}")
+                import traceback
+                st.code(traceback.format_exc(), language="text")
 
 st.divider()
 
