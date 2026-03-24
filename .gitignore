@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+db/audit_dashboard.db
+data/
+.venv/
+.streamlit/
