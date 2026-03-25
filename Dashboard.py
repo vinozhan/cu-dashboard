@@ -23,8 +23,8 @@ try:
     stats = get_summary_stats()
 
     col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("System Projects", stats["total_audits"])
-    col2.metric("Food Projects", stats["total_iso_projects"])
+    col1.metric("System Projects", stats["total_iso_projects"])
+    col2.metric("Food Projects", stats["total_audits"])
     col3.metric("Overlaps (30d)", stats["overlaps_30_days"])
     col4.metric("Overlaps (60d)", stats["overlaps_60_days"])
     col5.metric("Cities (2+ projects)", stats["cities_with_multiple_projects"])
@@ -105,10 +105,23 @@ with col_right:
             hole=0.45,
         )
         fig_status.update_traces(
-            textposition="outside",
-            textinfo="label+percent+value",
+            textposition="inside",
+            textinfo="percent+value",
+            insidetextorientation="horizontal",
         )
-        fig_status.update_layout(height=350, showlegend=False)
+        fig_status.update_layout(
+            height=400,
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.05,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=11),
+            ),
+            margin=dict(t=20, b=60),
+        )
         style_plotly_fig(fig_status)
         st.plotly_chart(fig_status, use_container_width=True)
     else:

@@ -71,29 +71,58 @@ if not filtered.empty:
         label = f"{row['project_id']} - {row['audit_project']}"
         timeline_data.append({
             "Project": label,
-            "Start": row["audit_expiry_date"],
-            "End": row["audit_expiry_date"] + pd.Timedelta(days=1),
-            "Type": f"System Expiry ({row['spg_name']})",
+            "Expiry Date": row["audit_expiry_date"],
+            "Type": "Food Expiry",
+            "Gap": abs(row["gap_days"]),
         })
         timeline_data.append({
             "Project": label,
-            "Start": row["iso_exp_date"],
-            "End": row["iso_exp_date"] + pd.Timedelta(days=1),
-            "Type": f"Food Expiry ({row['iso_standard']})",
+            "Expiry Date": row["iso_exp_date"],
+            "Type": "System Expiry",
+            "Gap": abs(row["gap_days"]),
         })
 
     timeline_df = pd.DataFrame(timeline_data)
-    fig = px.timeline(
+
+    fig = px.scatter(
         timeline_df,
-        x_start="Start",
-        x_end="End",
+        x="Expiry Date",
         y="Project",
         color="Type",
-        color_discrete_sequence=PLOTLY_COLORS,
-        title="System Projects Expiry vs Food Projects Expiry Dates",
+        color_discrete_map={
+            "Food Expiry": PLOTLY_COLORS[1],
+            "System Expiry": PLOTLY_COLORS[0],
+        },
+        hover_data={"Gap": True, "Expiry Date": "|%Y-%m-%d"},
     )
+    fig.update_traces(marker=dict(size=14, line=dict(width=1, color="white")))
     fig.update_yaxes(autorange="reversed")
-    fig.update_layout(height=max(400, len(filtered) * 50))
+
+    # Draw a connecting line between the two dates for each project
+    for _, row in filtered.iterrows():
+        label = f"{row['project_id']} - {row['audit_project']}"
+        fig.add_shape(
+            type="line",
+            x0=row["audit_expiry_date"], x1=row["iso_exp_date"],
+            y0=label, y1=label,
+            line=dict(color="rgba(186,176,172,0.6)", width=2, dash="dot"),
+        )
+        # Gap annotation at midpoint
+        mid_date = row["audit_expiry_date"] + (row["iso_exp_date"] - row["audit_expiry_date"]) / 2
+        fig.add_annotation(
+            x=mid_date, y=label,
+            text=f"{abs(row['gap_days'])}d",
+            showarrow=False,
+            font=dict(size=10, color="#5a6677"),
+            bgcolor="rgba(232,244,252,0.8)",
+            borderpad=3,
+        )
+
+    fig.update_layout(
+        height=max(400, len(filtered) * 50),
+        xaxis_title="Expiry Date",
+        yaxis_title="",
+    )
     style_plotly_fig(fig)
     st.plotly_chart(fig, use_container_width=True)
 
@@ -105,12 +134,12 @@ st.subheader("Matched Projects")
 display_cols = [
     "project_id", "audit_project", "audit_expiry_date", "iso_exp_date",
     "gap_days", "abs_gap_days", "spg_name", "spg_status", "iso_standard", "audit_city",
-    "audit_country", 
+    "audit_country",
 ]
 display_df = filtered[display_cols].copy()
 display_df.columns = [
-    "Project ID", "Project", "System Expiry", "Food Expiry",
-    "Gap (days)", "Abs Gap","SPG Name", "SPG Status", "ISO Standard", "City",
+    "Project ID", "Project", "Food Expiry", "System Expiry",
+    "Gap (days)", "Abs Gap", "SPG Name", "SPG Status", "ISO Standard", "City",
     "Country",
 ]
 
