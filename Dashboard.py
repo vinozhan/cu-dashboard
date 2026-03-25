@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from db.database import init_db
@@ -7,7 +8,6 @@ from style import page_header, style_plotly_fig, PLOTLY_COLORS
 
 st.set_page_config(
     page_title="Audit Dashboard",
-    #page_icon="https://img.icons8.com/fluency/48/audit.png"
     layout="wide",
 )
 
@@ -15,7 +15,7 @@ init_db()
 
 page_header(
     "Audit Optimization Dashboard",
-    "Combine audits with ISO certification renewals and optimize travel by city clustering.",
+    "Compare Food and System project expiries side-by-side. Identify overlap opportunities and optimize travel.",
 )
 
 # --- KPI Row ---
@@ -23,8 +23,8 @@ try:
     stats = get_summary_stats()
 
     col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("System Projects", stats["total_iso_projects"])
-    col2.metric("Food Projects", stats["total_audits"])
+    col1.metric("Food Projects", stats["total_audits"])
+    col2.metric("System Projects", stats["total_iso_projects"])
     col3.metric("Overlaps (30d)", stats["overlaps_30_days"])
     col4.metric("Overlaps (60d)", stats["overlaps_60_days"])
     col5.metric("Cities (2+ projects)", stats["cities_with_multiple_projects"])
@@ -39,40 +39,24 @@ if not has_data:
     st.info("No data imported yet. Go to **Data Upload** page to import your Excel files.")
     st.stop()
 
-col1, col2, col3 = st.columns(3) 
-
-# with col1:                                                                                                                                                       
-#     st.markdown("""                                                                                                                                              
-#     #### Audit Overlap Finder                                                                                                                                    
-#     Find projects where audit and ISO expiry dates are close enough to combine into one visit.                                                                   
-#       """) 
-# with col2:
-#     st.markdown("""                                                                                                                                              
-#     #### City Clusters                                                                                                                                          
-#     Identify cities with multiple projects to optimize travel planning.                                                                                         
-#     """)
-# with col3:
-#     st.markdown("""                                                                                                                                              
-#     #### Data Viewer                                                                                                                                            
-#     Browse and filter all imported audit and ISO project records.                                                                                                 
-#      """)   
-
-# --- Charts ---
+# --- Load chart data ---
 try:
     data = get_dashboard_data()
 except Exception:
     st.stop()
 
+# ============================================================
+# Row 1: Side-by-side — Food by Month vs System by Standard
+# ============================================================
 st.divider()
+st.subheader("Project Distribution")
 
-# Row 1: Audits by Month + SPG Status
-col_left, col_right = st.columns(2)
+col_food, col_system = st.columns(2)
 
-with col_left:
-    st.subheader("System Projects by Month")
-    df_month = data["audits_by_month"]
+with col_food:
+    st.markdown("**Food Projects by Month**")
+    df_month = data["food_by_month"]
     if not df_month.empty:
-        # Sort months chronologically — extract month abbreviation for ordering
         month_abbr_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         df_month["sort_key"] = df_month["source_month"].apply(
@@ -81,28 +65,46 @@ with col_left:
         df_month = df_month.sort_values("sort_key")
 
         fig_month = px.bar(
-            df_month,
-            x="source_month",
-            y="count",
-            color_discrete_sequence=[PLOTLY_COLORS[0]],
-            labels={"source_month": "Month", "count": "Audits"},
+            df_month, x="source_month", y="count",
+            color_discrete_sequence=[PLOTLY_COLORS[1]],
+            labels={"source_month": "Month", "count": "Projects"},
         )
         fig_month.update_layout(showlegend=False, height=350)
         style_plotly_fig(fig_month)
         st.plotly_chart(fig_month, use_container_width=True)
     else:
-        st.info("No audit data available.")
+        st.info("No Food project data.")
 
-with col_right:
-    st.subheader("SPG Status Breakdown")
-    df_status = data["audits_by_status"]
+with col_system:
+    st.markdown("**System Projects by ISO Standard**")
+    df_iso = data["system_by_standard"]
+    if not df_iso.empty:
+        fig_iso = px.bar(
+            df_iso, x="iso_standard", y="count",
+            color_discrete_sequence=[PLOTLY_COLORS[0]],
+            labels={"iso_standard": "ISO Standard", "count": "Projects"},
+        )
+        fig_iso.update_layout(showlegend=False, height=350)
+        style_plotly_fig(fig_iso)
+        st.plotly_chart(fig_iso, use_container_width=True)
+    else:
+        st.info("No System project data.")
+
+# ============================================================
+# Row 2: SPG Status (Food) vs Combined City Comparison
+# ============================================================
+st.divider()
+st.subheader("Status & City Overview")
+
+col_left, col_right = st.columns(2)
+
+with col_left:
+    st.markdown("**Food Projects — SPG Status**")
+    df_status = data["food_by_status"]
     if not df_status.empty:
         fig_status = px.pie(
-            df_status,
-            values="count",
-            names="spg_status",
-            color_discrete_sequence=PLOTLY_COLORS,
-            hole=0.45,
+            df_status, values="count", names="spg_status",
+            color_discrete_sequence=PLOTLY_COLORS, hole=0.45,
         )
         fig_status.update_traces(
             textposition="inside",
@@ -110,71 +112,65 @@ with col_right:
             insidetextorientation="horizontal",
         )
         fig_status.update_layout(
-            height=400,
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.05,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=11),
-            ),
+            height=400, showlegend=True,
+            legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5, font=dict(size=11)),
             margin=dict(t=20, b=60),
         )
         style_plotly_fig(fig_status)
         st.plotly_chart(fig_status, use_container_width=True)
     else:
-        st.info("No status data available.")
+        st.info("No status data.")
 
-st.divider()
+with col_right:
+    st.markdown("**Top Cities — Food vs System**")
+    df_combined = data["combined_cities"]
+    if not df_combined.empty:
+        # Get top 10 cities by total count
+        city_totals = df_combined.groupby("city")["count"].sum().nlargest(10).index
+        df_top = df_combined[df_combined["city"].isin(city_totals)]
 
-# Row 2: Top Cities + Upcoming Expiries
-col_left2, col_right2 = st.columns(2)
-
-with col_left2:
-    st.subheader("Top 10 Cities by System Count")
-    df_cities = data["top_cities"]
-    if not df_cities.empty:
-        df_cities = df_cities.sort_values("count", ascending=True)
-        fig_cities = px.bar(
-            df_cities,
-            x="count",
-            y="city",
+        fig_combined = px.bar(
+            df_top, x="count", y="city", color="source",
             orientation="h",
-            color="country",
-            color_discrete_sequence=PLOTLY_COLORS,
-            labels={"city": "City", "count": "Audits", "country": "Country"},
+            color_discrete_map={"Food": PLOTLY_COLORS[1], "System": PLOTLY_COLORS[0]},
+            labels={"city": "City", "count": "Projects", "source": "Type"},
+            barmode="group",
         )
-        fig_cities.update_layout(height=400, yaxis_title="")
-        style_plotly_fig(fig_cities)
-        st.plotly_chart(fig_cities, use_container_width=True)
+        fig_combined.update_layout(
+            height=500, yaxis_title="",
+            legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5),
+            margin=dict(b=80),
+        )
+        fig_combined.update_yaxes(autorange="reversed")
+        style_plotly_fig(fig_combined)
+        st.plotly_chart(fig_combined, use_container_width=True)
     else:
-        st.info("No city data available.")
+        st.info("No city data.")
 
-with col_right2:
-    st.subheader("Upcoming System Projects Expiries")
-    df_upcoming = data["upcoming_expiries"]
-    if not df_upcoming.empty:
-        display_df = df_upcoming.copy()
-        display_df.columns = ["Project ID", "Project", "Expiry Date", "SPG Name", "City", "Country"]
-        st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
+# ============================================================
+# Row 3: Upcoming Expiries — Side by Side
+# ============================================================
+st.divider()
+st.subheader("Upcoming Expiries")
+
+col_food_exp, col_sys_exp = st.columns(2)
+
+with col_food_exp:
+    st.markdown("**Food Projects — Next Expiring**")
+    df_food_up = data["food_upcoming"]
+    if not df_food_up.empty:
+        display_food = df_food_up.copy()
+        display_food.columns = ["Project ID", "Project", "Expiry Date", "SPG Name", "City", "Country"]
+        st.dataframe(display_food, use_container_width=True, hide_index=True, height=350)
     else:
-        st.info("No upcoming expiries found.")
+        st.info("No upcoming Food expiries.")
 
-# Row 3: ISO Standards Distribution
-df_iso = data["iso_by_standard"]
-if not df_iso.empty:
-    st.divider()
-    st.subheader("Food Projects by Standard")
-    fig_iso = px.bar(
-        df_iso,
-        x="iso_standard",
-        y="count",
-        color="iso_standard",
-        color_discrete_sequence=PLOTLY_COLORS,
-        labels={"iso_standard": "ISO Standard", "count": "Projects"},
-    )
-    fig_iso.update_layout(showlegend=False, height=300)
-    style_plotly_fig(fig_iso)
-    st.plotly_chart(fig_iso, use_container_width=True)
+with col_sys_exp:
+    st.markdown("**System Projects — Next Expiring**")
+    df_sys_up = data["system_upcoming"]
+    if not df_sys_up.empty:
+        display_sys = df_sys_up.copy()
+        display_sys.columns = ["Project ID", "Project", "Expiry Date", "ISO Standard", "City", "Country"]
+        st.dataframe(display_sys, use_container_width=True, hide_index=True, height=350)
+    else:
+        st.info("No upcoming System expiries.")

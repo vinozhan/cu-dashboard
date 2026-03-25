@@ -156,37 +156,66 @@ def get_summary_stats():
 
 def get_dashboard_data():
     """Return chart data for the dashboard home page."""
-    audits_by_month = pd.read_sql(
+
+    # --- Food Projects (audits table) ---
+    food_by_month = pd.read_sql(
         "SELECT source_month, COUNT(*) AS count FROM audits GROUP BY source_month",
         engine,
     )
 
-    audits_by_status = pd.read_sql(
+    food_by_status = pd.read_sql(
         "SELECT spg_status, COUNT(*) AS count FROM audits WHERE spg_status IS NOT NULL AND spg_status != '' GROUP BY spg_status",
         engine,
     )
 
-    top_cities = pd.read_sql(
+    food_top_cities = pd.read_sql(
         "SELECT city, country, COUNT(*) AS count FROM audits WHERE city IS NOT NULL AND city != '' GROUP BY city, country ORDER BY count DESC LIMIT 10",
         engine,
     )
 
-    upcoming_expiries = pd.read_sql(
+    food_upcoming = pd.read_sql(
         "SELECT project_id, project_name, expiry_date, spg_name, city, country FROM audits WHERE expiry_date IS NOT NULL AND expiry_date >= date('now') ORDER BY expiry_date LIMIT 10",
         engine,
     )
-    if not upcoming_expiries.empty:
-        upcoming_expiries["expiry_date"] = pd.to_datetime(upcoming_expiries["expiry_date"])
+    if not food_upcoming.empty:
+        food_upcoming["expiry_date"] = pd.to_datetime(food_upcoming["expiry_date"])
 
-    iso_by_standard = pd.read_sql(
+    # --- System Projects (iso_projects table) ---
+    system_by_standard = pd.read_sql(
         "SELECT iso_standard, COUNT(*) AS count FROM iso_projects GROUP BY iso_standard",
         engine,
     )
 
+    system_top_cities = pd.read_sql(
+        "SELECT city, country, COUNT(*) AS count FROM iso_projects WHERE city IS NOT NULL AND city != '' GROUP BY city, country ORDER BY count DESC LIMIT 10",
+        engine,
+    )
+
+    system_upcoming = pd.read_sql(
+        "SELECT project_id, project_name, exp_date, iso_standard, city, country FROM iso_projects WHERE exp_date IS NOT NULL AND exp_date >= date('now') GROUP BY project_id, iso_standard ORDER BY exp_date LIMIT 10",
+        engine,
+    )
+    if not system_upcoming.empty:
+        system_upcoming["exp_date"] = pd.to_datetime(system_upcoming["exp_date"])
+
+    # --- Combined: cities with both Food and System projects ---
+    combined_cities = pd.read_sql("""
+        SELECT city, country, source,  COUNT(*) AS count FROM (
+            SELECT city, country, 'Food' AS source FROM audits WHERE city IS NOT NULL AND city != '' AND expiry_date IS NOT NULL
+            UNION ALL
+            SELECT city, country, 'System' AS source FROM iso_projects WHERE city IS NOT NULL AND city != ''
+        )
+        GROUP BY city, country, source
+        ORDER BY count DESC
+    """, engine)
+
     return {
-        "audits_by_month": audits_by_month,
-        "audits_by_status": audits_by_status,
-        "top_cities": top_cities,
-        "upcoming_expiries": upcoming_expiries,
-        "iso_by_standard": iso_by_standard,
+        "food_by_month": food_by_month,
+        "food_by_status": food_by_status,
+        "food_top_cities": food_top_cities,
+        "food_upcoming": food_upcoming,
+        "system_by_standard": system_by_standard,
+        "system_top_cities": system_top_cities,
+        "system_upcoming": system_upcoming,
+        "combined_cities": combined_cities,
     }
