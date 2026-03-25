@@ -12,12 +12,37 @@ page_header(
     "Upload your Excel workbooks to import or refresh the dashboard data.",
 )
 
-# --- Upload: All Audits 2026 ---
-st.subheader("1. All Audits 2026")
-st.markdown("Excel workbook with monthly sheets (Jan 2026, Feb 2026, ...).")
+# --- Upload: All System Projects ---
+st.subheader("1. System Projects")
+st.markdown("Excel workbook with ISO standard sheets (ISO 9001, ISO 14001, ...).")
+
+iso_file = st.file_uploader(
+    "Upload 'System Projects' workbook",
+    type=["xlsx", "xls"],
+    key="iso_upload",
+)
+
+if iso_file is not None:
+    st.info(f"File: {iso_file.name} ({iso_file.size / 1024:.1f} KB)")
+
+    col1, col2 = st.columns(2)
+    clear_iso = col1.checkbox("Clear existing System project data before import", value=True, key="clear_iso")
+
+    if col2.button("Import System Projects", type="primary", key="import_iso"):
+        with st.spinner("Importing System project data..."):
+            try:
+                count = import_iso_projects(iso_file, clear_existing=clear_iso)
+                st.success(f"Successfully imported {count} System project records.")
+            except Exception as e:
+                st.error(f"Import failed: {e}")
+st.divider()
+
+# --- Upload: Food Projects with Units ---
+st.subheader("2. Food Projects")
+st.markdown("Excel workbook with monthly sheets (e.g. Jan, Feb, ...).")
 
 audit_file = st.file_uploader(
-    "Upload 'All Audits 2026' workbook",
+    "Upload 'Food Projects' workbook",
     type=["xlsx", "xls"],
     key="audit_upload",
 )
@@ -40,32 +65,6 @@ if audit_file is not None:
 
 st.divider()
 
-# --- Upload: ISO Projects with Units ---
-st.subheader("2. ISO Projects with Units")
-st.markdown("Excel workbook with ISO standard sheets (ISO 9001, ISO 14001, ...).")
-
-iso_file = st.file_uploader(
-    "Upload 'ISO Projects with Units' workbook",
-    type=["xlsx", "xls"],
-    key="iso_upload",
-)
-
-if iso_file is not None:
-    st.info(f"File: {iso_file.name} ({iso_file.size / 1024:.1f} KB)")
-
-    col1, col2 = st.columns(2)
-    clear_iso = col1.checkbox("Clear existing ISO data before import", value=True, key="clear_iso")
-
-    if col2.button("Import ISO Projects", type="primary", key="import_iso"):
-        with st.spinner("Importing ISO project data..."):
-            try:
-                count = import_iso_projects(iso_file, clear_existing=clear_iso)
-                st.success(f"Successfully imported {count} ISO project records.")
-            except Exception as e:
-                st.error(f"Import failed: {e}")
-
-st.divider()
-
 # --- Quick Data Status ---
 st.subheader("Current Data Status")
 
@@ -81,14 +80,14 @@ try:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.metric("Audit Records", audit_count)
-        if audit_months:
-            st.markdown("**Months loaded:** " + ", ".join(sorted([r[0] for r in audit_months])))
-
-    with col2:
-        st.metric("ISO Project Records", iso_count)
+        st.metric("System Projects Records", iso_count)
         if iso_standards:
             st.markdown("**Standards loaded:** " + ", ".join(sorted([r[0] for r in iso_standards])))
 
+    with col2:
+        st.metric("Food Projects Records", audit_count)
+        if audit_months:
+            st.markdown("**Months loaded:** " + ", ".join(sorted([r[0] for r in audit_months])))
+        
 except Exception:
     st.info("No data imported yet.")

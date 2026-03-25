@@ -67,11 +67,11 @@ st.plotly_chart(fig_bar, use_container_width=True)
 
 st.divider()
 
-# --- Breakdown: Audits vs ISO per City ---
-st.subheader("Audit vs ISO Expiry Breakdown by City")
+# --- Breakdown: System vs Food per City ---
+st.subheader("System vs Food Expiry Breakdown by City")
 
-breakdown_data = city_summary[["city", "country", "audit_count", "iso_count", "total_projects"]].copy()
-breakdown_data.columns = ["City", "Country", "Audits", "ISO Expirations", "Total"]
+breakdown_data = city_summary[["city", "country", "system_count", "food_count", "total_projects"]].copy()
+breakdown_data.columns = ["City", "Country", "System Projects", "Food Projects", "Total Unique Projects"]
 
 st.dataframe(breakdown_data, use_container_width=True, hide_index=True)
 

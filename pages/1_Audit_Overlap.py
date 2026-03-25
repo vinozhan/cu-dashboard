@@ -11,18 +11,18 @@ init_db()
 
 page_header(
     "Audit Overlap Finder",
-    "Find projects where the audit expiry date and an ISO certification expiry date fall within a short time window — so both renewals can be done in one trip.",
+    "Find projects where the System projects expiry date and an Food projects expiry date fall within a short time window — so both renewals can be done in one trip.",
 )
 
 # --- Sidebar Filters ---
 st.sidebar.header("Filters")
 max_gap = st.sidebar.slider(
     "Maximum gap (days)",
-    min_value=7,
+    min_value=5,
     max_value=180,
     value=60,
-    step=7,
-    help="Show matches where audit expiry and ISO expiry are within this many days",
+    step=5,
+    help="Show matches where System project expiry and Food project expiry are within this many days",
 )
 
 try:
@@ -73,13 +73,13 @@ if not filtered.empty:
             "Project": label,
             "Start": row["audit_expiry_date"],
             "End": row["audit_expiry_date"] + pd.Timedelta(days=1),
-            "Type": f"Audit Expiry ({row['spg_name']})",
+            "Type": f"System Expiry ({row['spg_name']})",
         })
         timeline_data.append({
             "Project": label,
             "Start": row["iso_exp_date"],
             "End": row["iso_exp_date"] + pd.Timedelta(days=1),
-            "Type": f"ISO Expiry ({row['iso_standard']})",
+            "Type": f"Food Expiry ({row['iso_standard']})",
         })
 
     timeline_df = pd.DataFrame(timeline_data)
@@ -90,7 +90,7 @@ if not filtered.empty:
         y="Project",
         color="Type",
         color_discrete_sequence=PLOTLY_COLORS,
-        title="Audit Expiry vs ISO Expiry Dates",
+        title="System Projects Expiry vs Food Projects Expiry Dates",
     )
     fig.update_yaxes(autorange="reversed")
     fig.update_layout(height=max(400, len(filtered) * 50))
@@ -109,7 +109,7 @@ display_cols = [
 ]
 display_df = filtered[display_cols].copy()
 display_df.columns = [
-    "Project ID", "Project", "Audit Expiry", "ISO Expiry",
+    "Project ID", "Project", "System Expiry", "Food Expiry",
     "Gap (days)", "Abs Gap","SPG Name", "SPG Status", "ISO Standard", "City",
     "Country",
 ]

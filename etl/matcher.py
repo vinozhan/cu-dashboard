@@ -61,7 +61,7 @@ def find_city_clusters(min_projects=2):
             city,
             country,
             expiry_date AS relevant_date,
-            'Audit Expiry' AS source_type,
+            'Food Expiry' AS source_type,
             spg_name AS detail,
             source_month
         FROM audits
@@ -76,7 +76,7 @@ def find_city_clusters(min_projects=2):
             city,
             country,
             exp_date AS relevant_date,
-            'ISO Expiry' AS source_type,
+            'System Expiry' AS source_type,
             iso_standard AS detail,
             NULL AS source_month
         FROM iso_projects
@@ -97,8 +97,8 @@ def find_city_clusters(min_projects=2):
         df_all.groupby(["city", "country"])
         .agg(
             total_projects=("project_id", "nunique"),
-            audit_count=("source_type", lambda x: (x == "Audit Expiry").sum()),
-            iso_count=("source_type", lambda x: (x == "ISO Expiry").sum()),
+            food_count=("source_type", lambda x: (x == "Food Expiry").sum()),
+            system_count=("source_type", lambda x: (x == "System Expiry").sum()),
             earliest_date=("relevant_date", "min"),
             latest_date=("relevant_date", "max"),
         )
@@ -151,4 +151,42 @@ def get_summary_stats():
         "overlaps_30_days": overlap_30 or 0,
         "overlaps_60_days": overlap_60 or 0,
         "cities_with_multiple_projects": cities_with_multiple or 0,
+    }
+
+
+def get_dashboard_data():
+    """Return chart data for the dashboard home page."""
+    audits_by_month = pd.read_sql(
+        "SELECT source_month, COUNT(*) AS count FROM audits GROUP BY source_month",
+        engine,
+    )
+
+    audits_by_status = pd.read_sql(
+        "SELECT spg_status, COUNT(*) AS count FROM audits WHERE spg_status IS NOT NULL AND spg_status != '' GROUP BY spg_status",
+        engine,
+    )
+
+    top_cities = pd.read_sql(
+        "SELECT city, country, COUNT(*) AS count FROM audits WHERE city IS NOT NULL AND city != '' GROUP BY city, country ORDER BY count DESC LIMIT 10",
+        engine,
+    )
+
+    upcoming_expiries = pd.read_sql(
+        "SELECT project_id, project_name, expiry_date, spg_name, city, country FROM audits WHERE expiry_date IS NOT NULL AND expiry_date >= date('now') ORDER BY expiry_date LIMIT 10",
+        engine,
+    )
+    if not upcoming_expiries.empty:
+        upcoming_expiries["expiry_date"] = pd.to_datetime(upcoming_expiries["expiry_date"])
+
+    iso_by_standard = pd.read_sql(
+        "SELECT iso_standard, COUNT(*) AS count FROM iso_projects GROUP BY iso_standard",
+        engine,
+    )
+
+    return {
+        "audits_by_month": audits_by_month,
+        "audits_by_status": audits_by_status,
+        "top_cities": top_cities,
+        "upcoming_expiries": upcoming_expiries,
+        "iso_by_standard": iso_by_standard,
     }

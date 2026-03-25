@@ -10,7 +10,7 @@ init_db()
 
 page_header(
     "Data Viewer",
-    "Browse and filter all imported audit and ISO project records.",
+    "Browse and filter all imported System Projects and Food Projects records.",
 )
 
 # --- Current Data Status ---
@@ -26,21 +26,63 @@ try:
 
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("Audit Records", audit_count)
-        if audit_months:
-            st.markdown("**Months loaded:** " + ", ".join(sorted([r[0] for r in audit_months])))
-    with col2:
-        st.metric("ISO Project Records", iso_count)
+        st.metric("System Projects Records", iso_count)
         if iso_standards:
             st.markdown("**Standards loaded:** " + ", ".join(sorted([r[0] for r in iso_standards])))
+        
+    with col2:
+        st.metric("Food Projects Records", audit_count)
+        if audit_months:
+            st.markdown("**Months loaded:** " + ", ".join(sorted([r[0] for r in audit_months])))
 except Exception:
     st.info("No data imported yet. Go to **Data Upload** to import.")
 
 st.divider()
 
-tab1, tab2 = st.tabs(["Audits Data", "ISO Projects Data"])
+tab1, tab2 = st.tabs(["System Projects Data", "Food Projects Data"])
 
 with tab1:
+    try:
+        df_iso = pd.read_sql("SELECT * FROM iso_projects", engine)
+    except Exception:
+        df_iso = pd.DataFrame()
+
+    if df_iso.empty:
+        st.info("No System Projects data imported yet. Go to **Data Upload** to import.")
+    else:
+        # Filters
+        col_f1, col_f2 = st.columns(2)
+        standards = ["All"] + sorted(df_iso["iso_standard"].dropna().unique().tolist())
+        sel_std = col_f1.selectbox("Filter by ISO Standard", standards, key="iso_std_filter")
+
+        iso_countries = ["All"] + sorted(df_iso["country"].dropna().unique().tolist())
+        sel_iso_country = col_f2.selectbox("Filter by Country", iso_countries, key="iso_country_filter")
+
+        display_iso = df_iso.copy()
+        if sel_std != "All":
+            display_iso = display_iso[display_iso["iso_standard"] == sel_std]
+        if sel_iso_country != "All":
+            display_iso = display_iso[display_iso["country"] == sel_iso_country]
+
+        st.markdown(f"Showing **{len(display_iso)}** of {len(df_iso)} records")
+        st.dataframe(
+            display_iso.drop(columns=["id"], errors="ignore"),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        # Export
+        buffer = BytesIO()
+        display_iso.drop(columns=["id"], errors="ignore").to_excel(buffer, index=False, engine="openpyxl")
+        st.download_button(
+            label="Download Filtered System Projects",
+            data=buffer.getvalue(),
+            file_name="iso_projects_filtered.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_iso",
+        )
+
+with tab2:
     try:
         df_audits = pd.read_sql("SELECT * FROM audits", engine)
     except Exception:
@@ -79,50 +121,11 @@ with tab1:
         buffer = BytesIO()
         display.drop(columns=["id"], errors="ignore").to_excel(buffer, index=False, engine="openpyxl")
         st.download_button(
-            label="Download Filtered Audits",
+            label="Download Filtered Food Projects",
             data=buffer.getvalue(),
             file_name="audits_filtered.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="download_audits",
         )
 
-with tab2:
-    try:
-        df_iso = pd.read_sql("SELECT * FROM iso_projects", engine)
-    except Exception:
-        df_iso = pd.DataFrame()
 
-    if df_iso.empty:
-        st.info("No ISO project data imported yet. Go to **Data Upload** to import.")
-    else:
-        # Filters
-        col_f1, col_f2 = st.columns(2)
-        standards = ["All"] + sorted(df_iso["iso_standard"].dropna().unique().tolist())
-        sel_std = col_f1.selectbox("Filter by ISO Standard", standards, key="iso_std_filter")
-
-        iso_countries = ["All"] + sorted(df_iso["country"].dropna().unique().tolist())
-        sel_iso_country = col_f2.selectbox("Filter by Country", iso_countries, key="iso_country_filter")
-
-        display_iso = df_iso.copy()
-        if sel_std != "All":
-            display_iso = display_iso[display_iso["iso_standard"] == sel_std]
-        if sel_iso_country != "All":
-            display_iso = display_iso[display_iso["country"] == sel_iso_country]
-
-        st.markdown(f"Showing **{len(display_iso)}** of {len(df_iso)} records")
-        st.dataframe(
-            display_iso.drop(columns=["id"], errors="ignore"),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-        # Export
-        buffer = BytesIO()
-        display_iso.drop(columns=["id"], errors="ignore").to_excel(buffer, index=False, engine="openpyxl")
-        st.download_button(
-            label="Download Filtered ISO Projects",
-            data=buffer.getvalue(),
-            file_name="iso_projects_filtered.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="download_iso",
-        )

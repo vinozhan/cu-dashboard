@@ -63,6 +63,7 @@ def apply_custom_css():
             color: #0077b6;
         }
 
+
         /* Metric cards */
         div[data-testid="stMetric"] {
             background: linear-gradient(135deg, #e8f4fc 0%, #ffffff 100%);
@@ -136,12 +137,43 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 
+def sidebar_branding():
+    """Inject CSS to render branded title at the very top of the sidebar, above nav."""
+    import streamlit as st
+
+    st.markdown("""
+    <style>
+        /* Sidebar branding above navigation */
+        section[data-testid="stSidebar"]::before {
+            content: "Audit Dashboard";
+            display: block;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #0077b6;
+            padding: 20px 24px 4px 24px;
+            line-height: 1.2;
+        }
+        section[data-testid="stSidebar"]::after {
+            content: "Optimization & Planning";
+            display: block;
+            font-size: 0.75rem;
+            color: #5a6677;
+            padding: 0 24px 12px 24px;
+            border-bottom: 2px solid #009ceb;
+            margin-bottom: 8px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+
 def page_header(title, subtitle=""):
     """Render a branded page header."""
     import streamlit as st
 
     apply_custom_css()
-    st.markdown(f'<div class="brand-title">{title}</div>', unsafe_allow_html=True)
+    sidebar_branding()
+    if title:
+        st.markdown(f'<div class="brand-title">{title}</div>', unsafe_allow_html=True)
     if subtitle:
         st.markdown(f'<div class="brand-subtitle">{subtitle}</div>', unsafe_allow_html=True)
     st.markdown('<div class="brand-header-bar"></div>', unsafe_allow_html=True)
@@ -149,9 +181,8 @@ def page_header(title, subtitle=""):
 
 def style_plotly_fig(fig):
     """Apply brand styling to a Plotly figure."""
-    fig.update_layout(
+    layout_updates = dict(
         font=dict(family="Inter, sans-serif", color=TEXT_DARK),
-        title_font=dict(size=18, color=PRIMARY_DARK),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         hoverlabel=dict(bgcolor=PRIMARY_DARK, font_size=13, font_color=WHITE),
@@ -162,6 +193,10 @@ def style_plotly_fig(fig):
             font=dict(size=12),
         ),
     )
+    # Only style title if figure already has one set — avoids "Undefined"
+    if fig.layout.title and fig.layout.title.text:
+        layout_updates["title_font"] = dict(size=18, color=PRIMARY_DARK)
+    fig.update_layout(**layout_updates)
     fig.update_xaxes(gridcolor="#e8f4fc", zerolinecolor="rgba(0,156,235,0.25)")
     fig.update_yaxes(gridcolor="#e8f4fc", zerolinecolor="rgba(0,156,235,0.25)")
     return fig

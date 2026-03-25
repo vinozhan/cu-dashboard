@@ -144,15 +144,13 @@ def import_iso_projects(file_path_or_buffer, clear_existing=True):
         if not col_map:
             continue
 
-        # Forward-fill Project_ID and Project_Name for merged cell structure.
-        # In the Excel, Project_ID appears once and Project_Name is merged,
-        # with subsequent rows blank for additional units under the same project.
-        pid_col = col_map.get("project_id")
-        pname_col = col_map.get("project_name")
-        if pid_col:
-            df[pid_col] = df[pid_col].ffill()
-        if pname_col:
-            df[pname_col] = df[pname_col].ffill()
+        # Forward-fill project-level fields for merged cell structure.
+        # Project_ID, Project_Name, and Exp_Date appear once per project,
+        # with subsequent rows blank for additional units.
+        for field in ["project_id", "project_name", "exp_date"]:
+            col_name = col_map.get(field)
+            if col_name and col_name in df.columns:
+                df[col_name] = df[col_name].ffill()
 
         for _, row in df.iterrows():
             project_id = safe_str(row.get(col_map.get("project_id", ""), ""))
