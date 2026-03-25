@@ -4,14 +4,15 @@ import plotly.express as px
 from io import BytesIO
 from db.database import init_db
 from etl.matcher import find_overlaps
+from style import page_header, style_plotly_fig, PLOTLY_COLORS
 
 st.set_page_config(page_title="Audit Overlap Finder", layout="wide")
 init_db()
 
-st.title("Audit Overlap Finder")
-st.markdown("Find projects where the audit expiry date and an ISO certification expiry date fall within a short time window — so both renewals can be done in one trip.")
-
-st.divider()
+page_header(
+    "Audit Overlap Finder",
+    "Find projects where the audit expiry date and an ISO certification expiry date fall within a short time window — so both renewals can be done in one trip.",
+)
 
 # --- Sidebar Filters ---
 st.sidebar.header("Filters")
@@ -65,18 +66,15 @@ st.divider()
 st.subheader("Timeline View")
 
 if not filtered.empty:
-    # Build timeline data: each project shows audit expiry and ISO expiry markers
     timeline_data = []
     for _, row in filtered.iterrows():
         label = f"{row['project_id']} - {row['audit_project']}"
-        # Audit Expiry (show as a 1-day bar)
         timeline_data.append({
             "Project": label,
             "Start": row["audit_expiry_date"],
             "End": row["audit_expiry_date"] + pd.Timedelta(days=1),
             "Type": f"Audit Expiry ({row['spg_name']})",
         })
-        # ISO Expiry (show as a 1-day bar)
         timeline_data.append({
             "Project": label,
             "Start": row["iso_exp_date"],
@@ -91,10 +89,12 @@ if not filtered.empty:
         x_end="End",
         y="Project",
         color="Type",
+        color_discrete_sequence=PLOTLY_COLORS,
         title="Audit Expiry vs ISO Expiry Dates",
     )
     fig.update_yaxes(autorange="reversed")
     fig.update_layout(height=max(400, len(filtered) * 50))
+    style_plotly_fig(fig)
     st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
@@ -104,14 +104,14 @@ st.subheader("Matched Projects")
 
 display_cols = [
     "project_id", "audit_project", "audit_expiry_date", "iso_exp_date",
-    "gap_days", "abs_gap_days", "iso_standard", "audit_city",
-    "audit_country", "spg_name", "spg_status",
+    "gap_days", "abs_gap_days", "spg_name", "spg_status", "iso_standard", "audit_city",
+    "audit_country", 
 ]
 display_df = filtered[display_cols].copy()
 display_df.columns = [
     "Project ID", "Project", "Audit Expiry", "ISO Expiry",
-    "Gap (days)", "Abs Gap", "ISO Standard", "City",
-    "Country", "SPG Name", "SPG Status",
+    "Gap (days)", "Abs Gap","SPG Name", "SPG Status", "ISO Standard", "City",
+    "Country",
 ]
 
 st.dataframe(display_df, use_container_width=True, hide_index=True)

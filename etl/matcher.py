@@ -66,6 +66,7 @@ def find_city_clusters(min_projects=2):
             source_month
         FROM audits
         WHERE city IS NOT NULL AND city != ''
+            AND expiry_date IS NOT NULL
     """)
 
     query_iso = text("""
@@ -133,7 +134,7 @@ def get_summary_stats():
         cities_with_multiple = session.execute(text("""
             SELECT COUNT(*) FROM (
                 SELECT city FROM (
-                    SELECT city FROM audits WHERE city IS NOT NULL AND city != ''
+                    SELECT city FROM audits WHERE city IS NOT NULL AND city != '' AND expiry_date IS NOT NULL
                     UNION ALL
                     SELECT city FROM iso_projects WHERE city IS NOT NULL AND city != ''
                 )

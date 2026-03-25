@@ -25,6 +25,9 @@ def safe_str(value, default=""):
     """Safely convert any value to a stripped string."""
     if _is_na(value):
         return default
+    # Convert float IDs like 871338.0 to clean "871338"
+    if isinstance(value, float) and value == int(value):
+        return str(int(value))
     return str(value).strip()
 
 

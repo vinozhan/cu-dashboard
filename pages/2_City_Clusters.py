@@ -4,14 +4,15 @@ import plotly.express as px
 from io import BytesIO
 from db.database import init_db
 from etl.matcher import find_city_clusters
+from style import page_header, style_plotly_fig, PLOTLY_COLORS
 
 st.set_page_config(page_title="City Clusters", layout="wide")
 init_db()
 
-st.title("City Clusters")
-st.markdown("Group projects by city to identify travel optimization opportunities — visit multiple projects in one trip.")
-
-st.divider()
+page_header(
+    "City Clusters",
+    "Group projects by city to identify travel optimization opportunities — visit multiple projects in one trip.",
+)
 
 # --- Sidebar Filters ---
 st.sidebar.header("Filters")
@@ -56,10 +57,12 @@ fig_bar = px.bar(
     x="city",
     y="total_projects",
     color="country",
+    color_discrete_sequence=PLOTLY_COLORS,
     labels={"city": "City", "total_projects": "Projects", "country": "Country"},
     title="Cities with Most Auditable Projects",
 )
 fig_bar.update_layout(xaxis_tickangle=-45)
+style_plotly_fig(fig_bar)
 st.plotly_chart(fig_bar, use_container_width=True)
 
 st.divider()
@@ -110,9 +113,11 @@ if city_options:
             x_end="End",
             y="Project",
             color="Type",
+            color_discrete_sequence=PLOTLY_COLORS,
             title=f"Project Timeline in {selected_city.title()}",
         )
         fig_timeline.update_yaxes(autorange="reversed")
+        style_plotly_fig(fig_timeline)
         st.plotly_chart(fig_timeline, use_container_width=True)
 
 # --- Export ---
