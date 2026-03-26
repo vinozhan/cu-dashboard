@@ -181,6 +181,22 @@ def get_dashboard_data():
         food_upcoming["expiry_date"] = pd.to_datetime(food_upcoming["expiry_date"])
 
     # --- System Projects (iso_projects table) ---
+    # Planned start date = exp_date - 90 days, grouped by month
+    system_by_month = pd.read_sql(
+        text("SELECT strftime('%m', date(exp_date, '-90 days')) AS month_num, strftime('%Y', date(exp_date, '-90 days')) AS year, COUNT(*) AS count FROM iso_projects WHERE exp_date IS NOT NULL GROUP BY month_num, year ORDER BY year, month_num"),
+        engine,
+    )
+
+    if not system_by_month.empty:
+        month_names = {
+            "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr",
+            "05": "May", "06": "Jun", "07": "Jul", "08": "Aug",
+            "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
+        }
+        system_by_month["source_month"] = system_by_month.apply(
+            lambda r: f"{month_names.get(r['month_num'], r['month_num'])} {r['year']}", axis=1
+        )
+
     system_by_standard = pd.read_sql(
         "SELECT iso_standard, COUNT(*) AS count FROM iso_projects GROUP BY iso_standard",
         engine,
@@ -214,6 +230,7 @@ def get_dashboard_data():
         "food_by_status": food_by_status,
         "food_top_cities": food_top_cities,
         "food_upcoming": food_upcoming,
+        "system_by_month": system_by_month,
         "system_by_standard": system_by_standard,
         "system_top_cities": system_top_cities,
         "system_upcoming": system_upcoming,

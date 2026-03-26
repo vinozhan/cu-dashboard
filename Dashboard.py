@@ -22,12 +22,12 @@ page_header(
 try:
     stats = get_summary_stats()
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Food Projects", stats["total_audits"])
     col2.metric("System Projects", stats["total_iso_projects"])
     col3.metric("Overlaps (30d)", stats["overlaps_30_days"])
     col4.metric("Overlaps (60d)", stats["overlaps_60_days"])
-    col5.metric("Cities (2+ projects)", stats["cities_with_multiple_projects"])
+    #col5.metric("Cities (2+ projects)", stats["cities_with_multiple_projects"])
 
     has_data = stats["total_audits"] > 0 or stats["total_iso_projects"] > 0
 
@@ -49,12 +49,12 @@ except Exception:
 # Row 1: Side-by-side — Food by Month vs System by Standard
 # ============================================================
 st.divider()
-st.subheader("Project Distribution")
+st.subheader("Planned Project Distribution")
 
 col_food, col_system = st.columns(2)
 
 with col_food:
-    st.markdown("**Food Projects by Month**")
+    st.markdown("**Food Projects by Planned Month**")
     df_month = data["food_by_month"]
     if not df_month.empty:
         month_abbr_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -76,25 +76,32 @@ with col_food:
         st.info("No Food project data.")
 
 with col_system:
-    st.markdown("**System Projects by ISO Standard**")
-    df_iso = data["system_by_standard"]
-    if not df_iso.empty:
-        fig_iso = px.bar(
-            df_iso, x="iso_standard", y="count",
-            color_discrete_sequence=[PLOTLY_COLORS[0]],
-            labels={"iso_standard": "ISO Standard", "count": "Projects"},
+    st.markdown("**System Projects by Planned Month**")
+    df_sys_month = data["system_by_month"]
+    if not df_sys_month.empty:
+        month_abbr_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        df_sys_month["sort_key"] = df_sys_month["source_month"].apply(
+            lambda x: next((i for i, m in enumerate(month_abbr_order) if x.startswith(m)), 99)
         )
-        fig_iso.update_layout(showlegend=False, height=350)
-        style_plotly_fig(fig_iso)
-        st.plotly_chart(fig_iso, use_container_width=True)
+        df_sys_month = df_sys_month.sort_values("sort_key")
+
+        fig_sys_month = px.bar(
+            df_sys_month, x="source_month", y="count",
+            color_discrete_sequence=[PLOTLY_COLORS[0]],
+            labels={"source_month": "Month", "count": "Projects"},
+        )
+        fig_sys_month.update_layout(showlegend=False, height=350)
+        style_plotly_fig(fig_sys_month)
+        st.plotly_chart(fig_sys_month, use_container_width=True)
     else:
         st.info("No System project data.")
 
 # ============================================================
-# Row 2: SPG Status (Food) vs Combined City Comparison
+# Row 2: SPG Status (Food) vs System by Standard
 # ============================================================
 st.divider()
-st.subheader("Status & City Overview")
+st.subheader("Status Overview")
 
 col_left, col_right = st.columns(2)
 
@@ -122,36 +129,52 @@ with col_left:
         st.info("No status data.")
 
 with col_right:
-    st.markdown("**Top Cities — Food vs System**")
-    df_combined = data["combined_cities"]
-    if not df_combined.empty:
-        # Get top 10 cities by total count
-        city_totals = df_combined.groupby("city")["count"].sum().nlargest(10).index
-        df_top = df_combined[df_combined["city"].isin(city_totals)]
-
-        fig_combined = px.bar(
-            df_top, x="count", y="city", color="source",
-            orientation="h",
-            color_discrete_map={"Food": PLOTLY_COLORS[1], "System": PLOTLY_COLORS[0]},
-            labels={"city": "City", "count": "Projects", "source": "Type"},
-            barmode="group",
+    st.markdown("**System Projects by ISO Standard**")
+    df_iso = data["system_by_standard"]
+    if not df_iso.empty:
+        fig_iso = px.bar(
+            df_iso, x="iso_standard", y="count",
+            color_discrete_sequence=[PLOTLY_COLORS[0]],
+            labels={"iso_standard": "ISO Standard", "count": "Projects"},
         )
-        fig_combined.update_layout(
-            height=500, yaxis_title="",
-            legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5),
-            margin=dict(b=80),
-        )
-        fig_combined.update_yaxes(autorange="reversed")
-        style_plotly_fig(fig_combined)
-        st.plotly_chart(fig_combined, use_container_width=True)
+        fig_iso.update_layout(showlegend=False, height=400)
+        style_plotly_fig(fig_iso)
+        st.plotly_chart(fig_iso, use_container_width=True)
     else:
-        st.info("No city data.")
+        st.info("No System project data.")
+
+# ============================================================
+# Row 3: Top Cities — Food vs System (full width)
+# ============================================================
+st.divider()
+st.subheader("Top Cities — Food vs System")
+
+df_combined = data["combined_cities"]
+if not df_combined.empty:
+    city_totals = df_combined.groupby("city")["count"].sum().nlargest(15).index
+    df_top = df_combined[df_combined["city"].isin(city_totals)]
+
+    fig_combined = px.bar(
+        df_top, x="city", y="count", color="source",
+        color_discrete_map={"Food": PLOTLY_COLORS[1], "System": PLOTLY_COLORS[0]},
+        labels={"city": "City", "count": "Projects", "source": "Type"},
+        barmode="group",
+    )
+    fig_combined.update_layout(
+        height=450,
+        xaxis_tickangle=-45,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    )
+    style_plotly_fig(fig_combined)
+    st.plotly_chart(fig_combined, use_container_width=True)
+else:
+    st.info("No city data.")
 
 # ============================================================
 # Row 3: Upcoming Expiries — Side by Side
 # ============================================================
 st.divider()
-st.subheader("Upcoming Expiries")
+st.subheader("Top 10 Upcoming Expiries")
 
 col_food_exp, col_sys_exp = st.columns(2)
 
