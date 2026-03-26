@@ -78,7 +78,7 @@ st.dataframe(breakdown_data, use_container_width=True, hide_index=True)
 st.divider()
 
 # --- Drill-down: Select a city to see projects ---
-st.subheader("City Detail View")
+st.subheader("City Projects View")
 
 city_options = city_summary["city"].tolist()
 if city_options:

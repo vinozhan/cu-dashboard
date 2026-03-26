@@ -49,18 +49,70 @@ def apply_custom_css():
     <style>
         /* Header bar */
         header[data-testid="stHeader"] {
-            background: linear-gradient(90deg, #009ceb 0%, #0077b6 100%);
+            background: #1b1e42;
+        }
+        /* Header toolbar buttons (Deploy, 3-dots menu) */
+        header[data-testid="stHeader"] button,
+        header[data-testid="stHeader"] [data-testid="stToolbar"] button {
+            color: rgba(255,255,255,0.7);
+        }
+        header[data-testid="stHeader"] button:hover,
+        header[data-testid="stHeader"] [data-testid="stToolbar"] button:hover {
+            color: #ffffff;
+            background: rgba(255,255,255,0.1);
+        }
+        /* Toolbar icons visibility */
+        header[data-testid="stHeader"] [data-testid="stToolbar"] {
+            color: rgba(255,255,255,0.7);
+        }
+        header[data-testid="stHeader"] [data-testid="stToolbar"] svg {
+            fill: rgba(255,255,255,0.7);
+        }
+        header[data-testid="stHeader"] [data-testid="stToolbar"] svg:hover {
+            fill: #ffffff;
         }
 
         /* Sidebar */
         section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #e8f4fc 0%, #ffffff 100%);
-            border-right: 2px solid #009ceb;
+            background: #1b1e42;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        /* Collapse sidebar button — style for dark bg */
+        button[data-testid="stSidebarCollapseButton"] {
+            color: rgba(255,255,255,0.6);
+        }
+        button[data-testid="stSidebarCollapseButton"]:hover {
+            color: #ffffff;
+            background: rgba(255,255,255,0.1);
+        }
+        /* Expand sidebar button — Material icon with inline color on dark header */
+        [data-testid="stIconMaterial"] {
+            color: rgba(255,255,255,0.7);
+        }
+        [data-testid="stIconMaterial"]:hover {
+            color: #ffffff;
         }
         section[data-testid="stSidebar"] h1,
         section[data-testid="stSidebar"] h2,
         section[data-testid="stSidebar"] h3 {
-            color: #0077b6;
+            color: #ffffff;
+        }
+        /* Sidebar text and labels */
+        section[data-testid="stSidebar"] label,
+        section[data-testid="stSidebar"] p,
+        section[data-testid="stSidebar"] span,
+        section[data-testid="stSidebar"] .stMarkdown {
+            color: rgba(255,255,255,0.85);
+        }
+        /* Sidebar nav links */
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
+            color: rgba(255,255,255,0.75);
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover,
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-selected="true"] {
+            color: #ffffff;
+            background: rgba(0,156,235,0.2);
         }
 
 
@@ -149,7 +201,7 @@ def sidebar_branding():
             display: block;
             font-size: 1.3rem;
             font-weight: 700;
-            color: #0077b6;
+            color: #ffffff;
             padding: 20px 24px 4px 24px;
             line-height: 1.2;
         }
@@ -157,9 +209,9 @@ def sidebar_branding():
             content: "Optimization & Planning";
             display: block;
             font-size: 0.75rem;
-            color: #5a6677;
+            color: rgba(255,255,255,0.6);
             padding: 0 24px 12px 24px;
-            border-bottom: 2px solid #009ceb;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
             margin-bottom: 8px;
         }
     </style>
