@@ -1,16 +1,46 @@
 import pandas as pd
 from sqlalchemy import text
-from db.database import get_session, engine
+from db.database import get_session, engine, DATABASE_URL
+
+# Detect database type
+_is_postgres = DATABASE_URL.startswith("postgresql")
+
+
+def _date_diff_days(col_a, col_b):
+    """Return SQL expression for date difference in days (col_a - col_b)."""
+    if _is_postgres:
+        return f"({col_a}::date - {col_b}::date)"
+    return f"(julianday({col_a}) - julianday({col_b}))"
+
+
+def _abs_date_diff_days(col_a, col_b):
+    """Return SQL expression for absolute date difference in days."""
+    if _is_postgres:
+        return f"ABS({col_a}::date - {col_b}::date)"
+    return f"ABS(julianday({col_a}) - julianday({col_b}))"
+
+
+def _current_date():
+    """Return SQL for current date."""
+    if _is_postgres:
+        return "CURRENT_DATE"
+    return "date('now')"
+
+
+def _subquery_alias(alias):
+    """PostgreSQL requires AS for subquery aliases, SQLite accepts both."""
+    return f"AS {alias}"
 
 
 def find_overlaps(max_gap_days=60):
     """
     Find projects where the audit's Expiry Date and an ISO project's
     Exp_Date fall within max_gap_days of each other.
-
-    Returns a DataFrame with matched pairs and gap info.
     """
-    query = text("""
+    diff_expr = _date_diff_days("a.expiry_date", "ip.exp_date")
+    abs_diff_expr = _abs_date_diff_days("a.expiry_date", "ip.exp_date")
+
+    query = text(f"""
         SELECT
             a.project_id,
             a.project_name AS audit_project,
@@ -28,14 +58,14 @@ def find_overlaps(max_gap_days=60):
             ip.country AS iso_country,
             ip.exp_date AS iso_exp_date,
             ip.iso_standard,
-            julianday(a.expiry_date) - julianday(ip.exp_date) AS gap_days
+            {diff_expr} AS gap_days
         FROM audits a
         INNER JOIN iso_projects ip
             ON a.project_id = ip.project_id
         WHERE a.expiry_date IS NOT NULL
             AND ip.exp_date IS NOT NULL
-            AND ABS(julianday(a.expiry_date) - julianday(ip.exp_date)) <= :max_gap
-        ORDER BY ABS(julianday(a.expiry_date) - julianday(ip.exp_date))
+            AND {abs_diff_expr} <= :max_gap
+        ORDER BY {abs_diff_expr}
     """)
 
     df = pd.read_sql(query, engine, params={"max_gap": max_gap_days})
@@ -113,34 +143,37 @@ def find_city_clusters(min_projects=2):
 
 def get_summary_stats():
     """Return high-level KPI stats for the home page."""
+    abs_diff = _abs_date_diff_days("a.expiry_date", "ip.exp_date")
+
     session = get_session()
     try:
         total_audits = session.execute(text("SELECT COUNT(*) FROM audits")).scalar()
         total_iso = session.execute(text("SELECT COUNT(*) FROM iso_projects")).scalar()
-        overlap_30 = session.execute(text("""
+        overlap_30 = session.execute(text(f"""
             SELECT COUNT(*) FROM audits a
             INNER JOIN iso_projects ip ON a.project_id = ip.project_id
             WHERE a.expiry_date IS NOT NULL
                 AND ip.exp_date IS NOT NULL
-                AND ABS(julianday(a.expiry_date) - julianday(ip.exp_date)) <= 30
+                AND {abs_diff} <= 30
         """)).scalar()
-        overlap_60 = session.execute(text("""
+        overlap_60 = session.execute(text(f"""
             SELECT COUNT(*) FROM audits a
             INNER JOIN iso_projects ip ON a.project_id = ip.project_id
             WHERE a.expiry_date IS NOT NULL
                 AND ip.exp_date IS NOT NULL
-                AND ABS(julianday(a.expiry_date) - julianday(ip.exp_date)) <= 60
+                AND {abs_diff} <= 60
         """)).scalar()
-        cities_with_multiple = session.execute(text("""
+        cities_with_multiple = session.execute(text(f"""
             SELECT COUNT(*) FROM (
                 SELECT city FROM (
                     SELECT city FROM audits WHERE city IS NOT NULL AND city != '' AND expiry_date IS NOT NULL
                     UNION ALL
                     SELECT city FROM iso_projects WHERE city IS NOT NULL AND city != ''
                 )
+                {_subquery_alias('combined')}
                 GROUP BY city
                 HAVING COUNT(*) >= 2
-            )
+            ) {_subquery_alias('cities')}
         """)).scalar()
     finally:
         session.close()
@@ -156,6 +189,7 @@ def get_summary_stats():
 
 def get_dashboard_data():
     """Return chart data for the dashboard home page."""
+    cur_date = _current_date()
 
     # --- Food Projects (audits table) ---
     food_by_month = pd.read_sql(
@@ -174,28 +208,29 @@ def get_dashboard_data():
     )
 
     food_upcoming = pd.read_sql(
-        "SELECT project_id, project_name, expiry_date, spg_name, city, country FROM audits WHERE expiry_date IS NOT NULL AND expiry_date >= date('now') ORDER BY expiry_date LIMIT 10",
+        text(f"SELECT project_id, project_name, expiry_date, spg_name, city, country FROM audits WHERE expiry_date IS NOT NULL AND expiry_date >= {cur_date} ORDER BY expiry_date LIMIT 10"),
         engine,
     )
     if not food_upcoming.empty:
         food_upcoming["expiry_date"] = pd.to_datetime(food_upcoming["expiry_date"])
 
     # --- System Projects (iso_projects table) ---
-    # Planned start date = exp_date - 90 days, grouped by month
-    system_by_month = pd.read_sql(
-        text("SELECT strftime('%m', date(exp_date, '-90 days')) AS month_num, strftime('%Y', date(exp_date, '-90 days')) AS year, COUNT(*) AS count FROM iso_projects WHERE exp_date IS NOT NULL GROUP BY month_num, year ORDER BY year, month_num"),
+    # Planned start date = exp_date - 90 days, grouped by month.
+    # Use pandas for date math to stay DB-agnostic.
+    system_raw = pd.read_sql(
+        "SELECT exp_date FROM iso_projects WHERE exp_date IS NOT NULL",
         engine,
     )
-
-    if not system_by_month.empty:
-        month_names = {
-            "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr",
-            "05": "May", "06": "Jun", "07": "Jul", "08": "Aug",
-            "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
-        }
-        system_by_month["source_month"] = system_by_month.apply(
-            lambda r: f"{month_names.get(r['month_num'], r['month_num'])} {r['year']}", axis=1
-        )
+    if not system_raw.empty:
+        system_raw["exp_date"] = pd.to_datetime(system_raw["exp_date"])
+        system_raw["planned_date"] = system_raw["exp_date"] - pd.Timedelta(days=90)
+        system_raw["source_month"] = system_raw["planned_date"].dt.strftime("%b %Y")
+        system_by_month = system_raw.groupby("source_month").size().reset_index(name="count")
+        # Add sort key for chronological ordering
+        system_by_month["sort_date"] = pd.to_datetime(system_by_month["source_month"], format="%b %Y")
+        system_by_month = system_by_month.sort_values("sort_date").drop(columns=["sort_date"])
+    else:
+        system_by_month = pd.DataFrame(columns=["source_month", "count"])
 
     system_by_standard = pd.read_sql(
         "SELECT iso_standard, COUNT(*) AS count FROM iso_projects GROUP BY iso_standard",
@@ -208,22 +243,22 @@ def get_dashboard_data():
     )
 
     system_upcoming = pd.read_sql(
-        "SELECT project_id, project_name, exp_date, iso_standard, city, country FROM iso_projects WHERE exp_date IS NOT NULL AND exp_date >= date('now') GROUP BY project_id, iso_standard ORDER BY exp_date LIMIT 10",
+        text(f"SELECT project_id, project_name, exp_date, iso_standard, city, country FROM iso_projects WHERE exp_date IS NOT NULL AND exp_date >= {cur_date} GROUP BY project_id, iso_standard, project_name, exp_date, city, country ORDER BY exp_date LIMIT 10"),
         engine,
     )
     if not system_upcoming.empty:
         system_upcoming["exp_date"] = pd.to_datetime(system_upcoming["exp_date"])
 
     # --- Combined: cities with both Food and System projects ---
-    combined_cities = pd.read_sql("""
-        SELECT city, country, source,  COUNT(*) AS count FROM (
+    combined_cities = pd.read_sql(text(f"""
+        SELECT city, country, source, COUNT(*) AS count FROM (
             SELECT city, country, 'Food' AS source FROM audits WHERE city IS NOT NULL AND city != '' AND expiry_date IS NOT NULL
             UNION ALL
             SELECT city, country, 'System' AS source FROM iso_projects WHERE city IS NOT NULL AND city != ''
-        )
+        ) {_subquery_alias('combined')}
         GROUP BY city, country, source
         ORDER BY count DESC
-    """, engine)
+    """), engine)
 
     return {
         "food_by_month": food_by_month,
