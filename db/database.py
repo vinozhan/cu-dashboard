@@ -6,31 +6,32 @@ from sqlalchemy.orm import sessionmaker, Session
 
 def _get_database_url():
     """
-    Get database URL from Streamlit secrets (Supabase) or fall back to local SQLite.
-    For Streamlit Cloud: set DATABASE_URL in .streamlit/secrets.toml or app secrets.
-    For local development: uses SQLite by default.
+    Resolve database URL in priority order:
+    1. Streamlit secrets (for Streamlit Cloud deployment)
+    2. Environment variable (for other deployments)
+    3. Local SQLite (for development)
     """
-    # 1. Check Streamlit secrets (for Streamlit Cloud deployment)
     try:
-        return st.secrets["DATABASE_URL"]
+        url = st.secrets["DATABASE_URL"]
     except (KeyError, FileNotFoundError):
-        pass
+        url = os.environ.get("DATABASE_URL")
 
-    # 2. Check environment variable
-    db_url = os.environ.get("DATABASE_URL")
-    if db_url:
-        return db_url
+    if url:
+        # Supabase gives "postgres://" but SQLAlchemy requires "postgresql://"
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
 
-    # 3. Fall back to local SQLite
+    # Local SQLite fallback
     db_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(db_dir, "audit_dashboard.db")
     return f"sqlite:///{db_path}"
 
 
 DATABASE_URL = _get_database_url()
+_is_postgres = DATABASE_URL.startswith("postgresql")
 
-# PostgreSQL from Supabase uses "postgresql://" prefix
-engine = create_engine(DATABASE_URL, echo=False)
+engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
 
 

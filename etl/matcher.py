@@ -1,9 +1,6 @@
 import pandas as pd
 from sqlalchemy import text
-from db.database import get_session, engine, DATABASE_URL
-
-# Detect database type
-_is_postgres = DATABASE_URL.startswith("postgresql")
+from db.database import get_session, engine, _is_postgres
 
 
 def _date_diff_days(col_a, col_b):
