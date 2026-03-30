@@ -67,7 +67,7 @@ with tab1:
         st.markdown(f"Showing **{len(display_iso)}** of {len(df_iso)} records")
         st.dataframe(
             display_iso.drop(columns=["id"], errors="ignore"),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -113,7 +113,7 @@ with tab2:
         st.markdown(f"Showing **{len(display)}** of {len(df_audits)} records")
         st.dataframe(
             display.drop(columns=["id"], errors="ignore"),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 

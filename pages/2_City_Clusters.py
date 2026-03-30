@@ -33,6 +33,35 @@ if city_summary.empty:
     st.info("No city clusters found. Try lowering the minimum or upload data first.")
     st.stop()
 
+# Project Type filter
+project_types = ["All", "Food", "System"]
+selected_type = st.sidebar.selectbox("Project Type", project_types)
+
+if selected_type == "Food":
+    all_projects = all_projects[all_projects["source_type"] == "Food Expiry"]
+elif selected_type == "System":
+    all_projects = all_projects[all_projects["source_type"] == "System Expiry"]
+
+# Recalculate city summary after type filter
+if selected_type != "All":
+    city_summary = (
+        all_projects.groupby(["city", "country"])
+        .agg(
+            total_projects=("project_id", "nunique"),
+            food_count=("source_type", lambda x: (x == "Food Expiry").sum()),
+            system_count=("source_type", lambda x: (x == "System Expiry").sum()),
+            earliest_date=("relevant_date", "min"),
+            latest_date=("relevant_date", "max"),
+        )
+        .reset_index()
+    )
+    city_summary = city_summary[city_summary["total_projects"] >= min_projects]
+    city_summary = city_summary.sort_values("total_projects", ascending=False)
+
+if city_summary.empty:
+    st.info("No city clusters found for the selected filters.")
+    st.stop()
+
 # Country filter
 countries = ["All"] + sorted(city_summary["country"].dropna().unique().tolist())
 selected_country = st.sidebar.selectbox("Country", countries)
@@ -40,6 +69,14 @@ selected_country = st.sidebar.selectbox("Country", countries)
 if selected_country != "All":
     city_summary = city_summary[city_summary["country"] == selected_country]
     all_projects = all_projects[all_projects["country"] == selected_country]
+
+# Build dynamic filter label for titles
+filter_parts = []
+if selected_type != "All":
+    filter_parts.append(selected_type)
+if selected_country != "All":
+    filter_parts.append(selected_country.title())
+filter_label = " — ".join(filter_parts) if filter_parts else "All Projects"
 
 # --- KPI Cards ---
 col1, col2, col3 = st.columns(3)
@@ -50,7 +87,7 @@ col3.metric("Top city project count", city_summary["total_projects"].max() if no
 st.divider()
 
 # --- Bar Chart: Top Cities ---
-st.subheader("Top Cities by Project Count")
+st.subheader(f"Top Cities by Project Count — {filter_label}")
 
 fig_bar = px.bar(
     city_summary.head(20),
@@ -59,26 +96,25 @@ fig_bar = px.bar(
     color="country",
     color_discrete_sequence=PLOTLY_COLORS,
     labels={"city": "City", "total_projects": "Projects", "country": "Country"},
-    title="Cities with Most Auditable Projects",
 )
 fig_bar.update_layout(xaxis_tickangle=-45)
 style_plotly_fig(fig_bar)
-st.plotly_chart(fig_bar, use_container_width=True)
+st.plotly_chart(fig_bar, width="stretch")
 
 st.divider()
 
 # --- Breakdown: System vs Food per City ---
-st.subheader("System vs Food Expiry Breakdown by City")
+st.subheader(f"Expiry Breakdown by City — {filter_label}")
 
 breakdown_data = city_summary[["city", "country", "system_count", "food_count", "total_projects"]].copy()
 breakdown_data.columns = ["City", "Country", "System Projects", "Food Projects", "Total Unique Projects"]
 
-st.dataframe(breakdown_data, use_container_width=True, hide_index=True)
+st.dataframe(breakdown_data, width="stretch", hide_index=True)
 
 st.divider()
 
 # --- Drill-down: Select a city to see projects ---
-st.subheader("City Projects View")
+st.subheader(f"City Projects View — {filter_label}")
 
 city_options = city_summary["city"].tolist()
 if city_options:
@@ -92,7 +128,7 @@ if city_options:
     display_df = city_projects[display_cols].copy()
     display_df.columns = ["Project ID", "Project", "Type", "Standard/SPG", "Date"]
 
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.dataframe(display_df, width="stretch", hide_index=True)
 
     # Timeline for selected city
     if not city_projects.empty:
@@ -114,11 +150,11 @@ if city_options:
             y="Project",
             color="Type",
             color_discrete_sequence=PLOTLY_COLORS,
-            title=f"Project Timeline in {selected_city.title()}",
+            title=f"Project Timeline in {selected_city.title()} — {filter_label}",
         )
         fig_timeline.update_yaxes(autorange="reversed")
         style_plotly_fig(fig_timeline)
-        st.plotly_chart(fig_timeline, use_container_width=True)
+        st.plotly_chart(fig_timeline, width="stretch")
 
 # --- Export ---
 st.divider()

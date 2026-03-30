@@ -71,7 +71,7 @@ with col_food:
         )
         fig_month.update_layout(showlegend=False, height=350)
         style_plotly_fig(fig_month)
-        st.plotly_chart(fig_month, use_container_width=True)
+        st.plotly_chart(fig_month, width="stretch")
     else:
         st.info("No Food project data.")
 
@@ -93,7 +93,7 @@ with col_system:
         )
         fig_sys_month.update_layout(showlegend=False, height=350)
         style_plotly_fig(fig_sys_month)
-        st.plotly_chart(fig_sys_month, use_container_width=True)
+        st.plotly_chart(fig_sys_month, width="stretch")
     else:
         st.info("No System project data.")
 
@@ -124,7 +124,7 @@ with col_left:
             margin=dict(t=20, b=60),
         )
         style_plotly_fig(fig_status)
-        st.plotly_chart(fig_status, use_container_width=True)
+        st.plotly_chart(fig_status, width="stretch")
     else:
         st.info("No status data.")
 
@@ -139,7 +139,7 @@ with col_right:
         )
         fig_iso.update_layout(showlegend=False, height=400)
         style_plotly_fig(fig_iso)
-        st.plotly_chart(fig_iso, use_container_width=True)
+        st.plotly_chart(fig_iso, width="stretch")
     else:
         st.info("No System project data.")
 
@@ -166,7 +166,7 @@ if not df_combined.empty:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
     )
     style_plotly_fig(fig_combined)
-    st.plotly_chart(fig_combined, use_container_width=True)
+    st.plotly_chart(fig_combined, width="stretch")
 else:
     st.info("No city data.")
 
@@ -184,7 +184,7 @@ with col_food_exp:
     if not df_food_up.empty:
         display_food = df_food_up.copy()
         display_food.columns = ["Project ID", "Project", "Expiry Date", "SPG Name", "City", "Country"]
-        st.dataframe(display_food, use_container_width=True, hide_index=True, height=350)
+        st.dataframe(display_food, width="stretch", hide_index=True, height=350)
     else:
         st.info("No upcoming Food expiries.")
 
@@ -194,6 +194,6 @@ with col_sys_exp:
     if not df_sys_up.empty:
         display_sys = df_sys_up.copy()
         display_sys.columns = ["Project ID", "Project", "Expiry Date", "ISO Standard", "City", "Country"]
-        st.dataframe(display_sys, use_container_width=True, hide_index=True, height=350)
+        st.dataframe(display_sys, width="stretch", hide_index=True, height=350)
     else:
         st.info("No upcoming System expiries.")

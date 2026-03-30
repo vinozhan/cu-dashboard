@@ -124,7 +124,7 @@ if not filtered.empty:
         yaxis_title="",
     )
     style_plotly_fig(fig)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.divider()
 
@@ -143,7 +143,7 @@ display_df.columns = [
     "Country",
 ]
 
-st.dataframe(display_df, use_container_width=True, hide_index=True)
+st.dataframe(display_df, width="stretch", hide_index=True)
 
 # --- Export ---
 st.divider()
