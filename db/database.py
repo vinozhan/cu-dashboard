@@ -31,7 +31,7 @@ def _get_database_url():
 DATABASE_URL = _get_database_url()
 _is_postgres = DATABASE_URL.startswith("postgresql")
 
-engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=_is_postgres)
 SessionLocal = sessionmaker(bind=engine)
 
 
@@ -39,6 +39,7 @@ def get_session() -> Session:
     return SessionLocal()
 
 
+@st.cache_resource(show_spinner=False)
 def init_db():
     """Create all tables if they don't exist."""
     from db.models import Base

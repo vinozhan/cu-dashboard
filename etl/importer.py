@@ -32,18 +32,36 @@ def safe_str(value, default=""):
 
 
 def parse_date(value):
-    """Parse date from various Excel formats."""
+    """Parse date from Excel serials, timestamps, and common string formats."""
     if _is_na(value):
         return None
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, pd.Timestamp):
         return value.date()
+    # Excel numeric serial date (days since 1899-12-30 in pandas).
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        parsed = pd.to_datetime(value, unit="D", origin="1899-12-30", errors="coerce")
+        if not pd.isna(parsed):
+            return parsed.date()
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    # Try strict known formats first for deterministic parsing.
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%d.%m.%Y"):
         try:
-            return datetime.strptime(str(value).strip(), fmt).date()
+            return datetime.strptime(raw, fmt).date()
         except ValueError:
             continue
+
+    # Fallback: handle mixed separators/month names, with day-first preference.
+    parsed = pd.to_datetime(raw, errors="coerce", dayfirst=True)
+    if pd.isna(parsed):
+        parsed = pd.to_datetime(raw, errors="coerce", dayfirst=False)
+    if not pd.isna(parsed):
+        return parsed.date()
     return None
 
 
